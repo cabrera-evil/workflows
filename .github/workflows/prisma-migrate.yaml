@@ -10,21 +10,54 @@ on:
         type: boolean
         description: "Run Prisma seed script after applying migrations"
         default: false
+      tailscale:
+        type: boolean
+        description: "Connect to Tailscale before running migrations"
+        default: false
+      tailscale_tags:
+        type: string
+        description: "Comma-separated Tailscale tags applied to the ephemeral node (e.g. tag:ci)"
+        default: ""
     secrets:
       DATABASE_URL:
         description: "Database connection string"
         required: true
+      TS_OAUTH_CLIENT_ID:
+        description: "Tailscale OAuth client ID (or federated identity client ID)"
+        required: false
+      TS_OAUTH_SECRET:
+        description: "Tailscale OAuth client secret"
+        required: false
+      TS_AUDIENCE:
+        description: "Tailscale federated identity audience"
+        required: false
+      TAILSCALE_AUTHKEY:
+        description: "Tailscale auth key (alternative to OAuth/federated identity)"
+        required: false
 
 jobs:
   migrate:
     name: Deploy (${{ inputs.environment }})
     runs-on: ubuntu-latest
     environment: ${{ inputs.environment }}
+    permissions:
+      id-token: write
+      contents: read
     env:
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6.0.2
+
+      - name: Tailscale
+        if: ${{ inputs.tailscale }}
+        uses: tailscale/github-action@v4
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          audience: ${{ secrets.TS_AUDIENCE }}
+          authkey: ${{ secrets.TAILSCALE_AUTHKEY }}
+          tags: ${{ inputs.tailscale_tags }}
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v5.0.0

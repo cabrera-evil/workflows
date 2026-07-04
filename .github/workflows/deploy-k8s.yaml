@@ -13,6 +13,14 @@ on:
         type: string
         required: true
         description: "Image name without tag and owner (e.g., my-api)"
+      tailscale:
+        type: boolean
+        description: "Connect to Tailscale before deploying"
+        default: false
+      tailscale_tags:
+        type: string
+        description: "Comma-separated Tailscale tags applied to the ephemeral node (e.g. tag:ci)"
+        default: ""
     secrets:
       KUBECONFIG:
         description: Base64-encoded kubeconfig file
@@ -20,15 +28,40 @@ on:
       K8S_SECRET:
         description: Base64-encoded Kubernetes secret YAML
         required: true
+      TS_OAUTH_CLIENT_ID:
+        description: "Tailscale OAuth client ID (or federated identity client ID)"
+        required: false
+      TS_OAUTH_SECRET:
+        description: "Tailscale OAuth client secret"
+        required: false
+      TS_AUDIENCE:
+        description: "Tailscale federated identity audience"
+        required: false
+      TAILSCALE_AUTHKEY:
+        description: "Tailscale auth key (alternative to OAuth/federated identity)"
+        required: false
 
 jobs:
   deploy:
     name: ${{ inputs.environment }}
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6.0.2
+
+      - name: Tailscale
+        if: ${{ inputs.tailscale }}
+        uses: tailscale/github-action@v4
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          audience: ${{ secrets.TS_AUDIENCE }}
+          authkey: ${{ secrets.TAILSCALE_AUTHKEY }}
+          tags: ${{ inputs.tailscale_tags }}
 
       - name: Set up Kubernetes Config and Secret
         working-directory: k8s
