@@ -43,11 +43,11 @@ jobs:
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6.0.2
+        uses: actions/checkout@v7.0.1
 
       - name: Tailscale
         if: ${{ inputs.tailscale }}
-        uses: tailscale/github-action@v4
+        uses: tailscale/github-action@v4.1.3
         with:
           oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
           oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
@@ -55,10 +55,10 @@ jobs:
           tags: ${{ inputs.tailscale_tags }}
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v5.0.0
+        uses: pnpm/action-setup@v6.0.9
 
       - name: Install Node.js
-        uses: actions/setup-node@v6.3.0
+        uses: actions/setup-node@v7.0.0
         with:
           node-version: 24
 
