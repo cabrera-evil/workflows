@@ -23,16 +23,13 @@ on:
         description: "Database connection string"
         required: true
       TS_OAUTH_CLIENT_ID:
-        description: "Tailscale OAuth client ID (or federated identity client ID)"
+        description: "Tailscale OAuth client ID"
         required: false
       TS_OAUTH_SECRET:
         description: "Tailscale OAuth client secret"
         required: false
-      TS_AUDIENCE:
-        description: "Tailscale federated identity audience"
-        required: false
       TAILSCALE_AUTHKEY:
-        description: "Tailscale auth key (alternative to OAuth/federated identity)"
+        description: "Tailscale auth key (alternative to OAuth)"
         required: false
 
 jobs:
@@ -41,7 +38,6 @@ jobs:
     runs-on: ubuntu-latest
     environment: ${{ inputs.environment }}
     permissions:
-      id-token: write
       contents: read
     env:
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
@@ -55,7 +51,6 @@ jobs:
         with:
           oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
           oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
-          audience: ${{ secrets.TS_AUDIENCE }}
           authkey: ${{ secrets.TAILSCALE_AUTHKEY }}
           tags: ${{ inputs.tailscale_tags }}
 

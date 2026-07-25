@@ -29,16 +29,13 @@ on:
         description: Base64-encoded Kubernetes secret YAML
         required: true
       TS_OAUTH_CLIENT_ID:
-        description: "Tailscale OAuth client ID (or federated identity client ID)"
+        description: "Tailscale OAuth client ID"
         required: false
       TS_OAUTH_SECRET:
         description: "Tailscale OAuth client secret"
         required: false
-      TS_AUDIENCE:
-        description: "Tailscale federated identity audience"
-        required: false
       TAILSCALE_AUTHKEY:
-        description: "Tailscale auth key (alternative to OAuth/federated identity)"
+        description: "Tailscale auth key (alternative to OAuth)"
         required: false
 
 jobs:
@@ -46,7 +43,6 @@ jobs:
     name: ${{ inputs.environment }}
     runs-on: ubuntu-latest
     permissions:
-      id-token: write
       contents: read
 
     steps:
@@ -59,7 +55,6 @@ jobs:
         with:
           oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
           oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
-          audience: ${{ secrets.TS_AUDIENCE }}
           authkey: ${{ secrets.TAILSCALE_AUTHKEY }}
           tags: ${{ inputs.tailscale_tags }}
 
