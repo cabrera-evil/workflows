@@ -1,0 +1,60 @@
+name: Tailscale
+description: >-
+  Join the tailnet as an ephemeral node. Keyless by default (GitHub OIDC federated identity);
+  an OAuth client secret or auth key can be given as a fallback. The calling job needs
+  `permissions: id-token: write` for the keyless flow. Composite actions cannot read `vars`
+  or `secrets`, so the caller passes them as inputs.
+
+inputs:
+  client-id:
+    description: Federated-identity or OAuth client ID
+    required: false
+    default: ""
+  audience:
+    description: Federated-identity audience (keyless flow)
+    required: false
+    default: ""
+  oauth-secret:
+    description: Fallback - OAuth client secret (disables the keyless flow)
+    required: false
+    default: ""
+  authkey:
+    description: Fallback - auth key (disables the keyless flow)
+    required: false
+    default: ""
+  tags:
+    description: Comma-separated tags for the ephemeral node (e.g. tag:ci)
+    required: false
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    - name: Validate Tailscale inputs
+      shell: bash
+      env:
+        CLIENT_ID: ${{ inputs.client-id }}
+        AUDIENCE: ${{ inputs.audience }}
+        OAUTH_SECRET: ${{ inputs.oauth-secret }}
+        AUTHKEY: ${{ inputs.authkey }}
+        TAGS: ${{ inputs.tags }}
+      run: |
+        fail() { echo "::error title=Tailscale::$1"; exit 1; }
+        if [ -n "$AUTHKEY" ]; then
+          exit 0
+        elif [ -n "$OAUTH_SECRET" ]; then
+          [ -n "$CLIENT_ID" ] || fail "OAuth fallback needs a client ID (secret TS_OAUTH_CLIENT_ID)."
+        else
+          [ -n "$CLIENT_ID" ] && [ -n "$AUDIENCE" ] || fail "Keyless login needs the TS_CLIENT_ID and TS_AUDIENCE Actions variables."
+          [ -n "$ACTIONS_ID_TOKEN_REQUEST_URL" ] || fail "Keyless login needs 'permissions: id-token: write' in the calling workflow."
+        fi
+        [ -n "$TAGS" ] || fail "No tags given: set the tailscale_tags input or the TS_TAGS Actions variable."
+
+    - name: Join tailnet
+      uses: tailscale/github-action@v4.2.0
+      with:
+        oauth-client-id: ${{ inputs.authkey == '' && inputs.client-id || '' }}
+        oauth-secret: ${{ inputs.oauth-secret }}
+        audience: ${{ (inputs.authkey == '' && inputs.oauth-secret == '') && inputs.audience || '' }}
+        authkey: ${{ inputs.authkey }}
+        tags: ${{ inputs.tags }}

@@ -48,7 +48,8 @@ jobs:
 ```
 
 > Replace `code-analysis.yaml` with the workflow you want to use.
-> Pin to a specific commit or tag in production environments.
+> Pin to a specific commit or tag in production environments. Internal composite references
+> are `@master`; to pin, replace them in the workflows with the same tag or SHA.
 
 # Available workflows
 
@@ -71,6 +72,36 @@ jobs:
 | `set-environment.yaml`       | Set dynamic environment variables at runtime or per context        |
 
 > Each workflow is self-documented via `inputs:` and `secrets:` in the YAML header.
+
+# Composite actions
+
+Each does one thing and is used by the deploy/migrate/notify workflows (`tailscale: true`, `infisical: true`).
+Composite actions cannot read `vars` or `secrets`, so the workflows pass them in as inputs.
+
+| Action                          | Responsibility                                                              |
+| ------------------------------- | --------------------------------------------------------------------------- |
+| `.github/actions/tailscale`     | Join the tailnet as an ephemeral node (keyless OIDC; OAuth/authkey fallback) |
+| `.github/actions/infisical`     | Fetch secrets as masked env vars, or as a dotenv file (OIDC; Universal Auth fallback) |
+| `.github/actions/secrets-convert` | Turn the Infisical dotenv file into Helm values or a Kubernetes Secret (`convert.py`, tested by `test_convert.py`) |
+
+# Setup (once per org)
+
+**Actions variables** (org level; no secrets needed for the keyless flow):
+`TS_CLIENT_ID`, `TS_AUDIENCE`, `TS_TAGS` (e.g. `tag:ci`), `INFISICAL_DOMAIN`, `INFISICAL_PROJECT_SLUG`, `INFISICAL_IDENTITY_ID`.
+
+**Tailscale**: create a federated identity (workload identity federation) with GitHub as issuer, a subject
+pattern for your repos and the tag(s) above; copy its client ID and audience into the variables.
+
+**Infisical**: create a Machine Identity with OIDC Auth (issuer `https://token.actions.githubusercontent.com`,
+subject pattern for your repos), grant it read access to the project and paths, and put its ID in `INFISICAL_IDENTITY_ID`.
+
+**Callers** must grant `permissions: id-token: write` (the reusable workflows deliberately declare no job
+`permissions`, so they inherit the caller's and existing callers keep working). With `secrets: inherit`, optional
+fallbacks work without declaration: `TS_OAUTH_CLIENT_ID`, `TS_OAUTH_SECRET`, `TAILSCALE_AUTHKEY`,
+`INFISICAL_CLIENT_ID`, `INFISICAL_CLIENT_SECRET`.
+
+Secrets live in Infisical at `<path>` per service (default `/<release_name>` for Helm, `/<docker_image>` for k8s); the
+environment slug is the workflow's `environment` input.
 
 # License
 

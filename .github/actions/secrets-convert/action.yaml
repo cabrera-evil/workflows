@@ -1,0 +1,38 @@
+name: Convert secrets
+description: >-
+  Convert an Infisical dotenv export (infisical action, export=file) into a deploy artifact:
+  Helm values (`secret.stringData`) or a Kubernetes Secret manifest. Both outputs are JSON,
+  which is valid YAML. The input file is deleted and the output is written with mode 0600.
+
+inputs:
+  format:
+    description: helm-values or k8s-secret
+    required: true
+  input:
+    description: Workspace-relative dotenv file produced by the infisical action
+    required: true
+  output:
+    description: Workspace-relative file to write
+    required: true
+  name:
+    description: Secret name (k8s-secret only)
+    required: false
+    default: ""
+  helm-key:
+    description: Top-level values key holding the secret (helm-values only, deploy-chart uses `secret`)
+    required: false
+    default: secret
+
+runs:
+  using: composite
+  steps:
+    - name: Convert
+      shell: bash
+      env:
+        SCRIPT: ${{ github.action_path }}/convert.py
+        FORMAT: ${{ inputs.format }}
+        IN: ${{ inputs.input }}
+        OUT: ${{ inputs.output }}
+        NAME: ${{ inputs.name }}
+        HELM_KEY: ${{ inputs.helm-key }}
+      run: python3 "$SCRIPT" "$FORMAT" "$GITHUB_WORKSPACE/$IN" "$GITHUB_WORKSPACE/$OUT" --name "$NAME" --helm-key "$HELM_KEY"

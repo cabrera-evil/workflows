@@ -16,12 +16,20 @@ on:
         default: false
       tailscale_tags:
         type: string
-        description: "Comma-separated Tailscale tags applied to the ephemeral node (e.g. tag:ci)"
+        description: "Comma-separated Tailscale tags applied to the ephemeral node (defaults to the TS_TAGS variable)"
         default: ""
+      infisical:
+        type: boolean
+        description: "Fetch DATABASE_URL from Infisical instead of the DATABASE_URL secret (requires Tailscale for a private instance)"
+        default: false
+      infisical_path:
+        type: string
+        description: "Infisical secret path containing DATABASE_URL"
+        default: "/"
     secrets:
       DATABASE_URL:
-        description: "Database connection string"
-        required: true
+        description: "Database connection string (not needed when Infisical is used)"
+        required: false
       TS_OAUTH_CLIENT_ID:
         description: "Tailscale OAuth client ID"
         required: false
@@ -37,22 +45,41 @@ jobs:
     name: Deploy (${{ inputs.environment }})
     runs-on: ubuntu-latest
     environment: ${{ inputs.environment }}
-    permissions:
-      contents: read
-    env:
-      DATABASE_URL: ${{ secrets.DATABASE_URL }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7.0.1
 
-      - name: Tailscale
+      - name: Join tailnet
         if: ${{ inputs.tailscale }}
-        uses: tailscale/github-action@v4.2.0
+        uses: cabrera-evil/workflows/.github/actions/tailscale@master
         with:
-          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          client-id: ${{ secrets.TS_OAUTH_CLIENT_ID || vars.TS_CLIENT_ID }}
+          audience: ${{ vars.TS_AUDIENCE }}
           oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
           authkey: ${{ secrets.TAILSCALE_AUTHKEY }}
-          tags: ${{ inputs.tailscale_tags }}
+          tags: ${{ inputs.tailscale_tags || vars.TS_TAGS }}
+
+      - name: Fetch secrets (Infisical)
+        if: ${{ inputs.infisical }}
+        uses: cabrera-evil/workflows/.github/actions/infisical@master
+        with:
+          domain: ${{ vars.INFISICAL_DOMAIN }}
+          project-slug: ${{ vars.INFISICAL_PROJECT_SLUG }}
+          identity-id: ${{ vars.INFISICAL_IDENTITY_ID }}
+          client-id: ${{ secrets.INFISICAL_CLIENT_ID }}
+          client-secret: ${{ secrets.INFISICAL_CLIENT_SECRET }}
+          env: ${{ inputs.environment }}
+          path: ${{ inputs.infisical_path }}
+          secret-name: DATABASE_URL
+
+      - name: Database URL from secret
+        if: ${{ !inputs.infisical }}
+        env:
+          DB_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          [ -n "$DB_URL" ] || { echo "::error::DATABASE_URL secret is required when Infisical is not used"; exit 1; }
+          echo "::add-mask::$DB_URL"
+          echo "DATABASE_URL=$DB_URL" >> "$GITHUB_ENV"
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v6.1.0

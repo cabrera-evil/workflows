@@ -17,16 +17,64 @@ on:
       url:
         type: string
         description: "URL to the deployment or relevant resource"
+      tailscale:
+        type: boolean
+        description: "Join the tailnet first (config from TS_* variables, keyless OIDC by default)"
+        default: false
+      tailscale_tags:
+        type: string
+        description: "Comma-separated Tailscale tags applied to the ephemeral node (defaults to the TS_TAGS variable)"
+        default: ""
+      infisical:
+        type: boolean
+        description: "Fetch secrets from Infisical (config from INFISICAL_* variables, keyless OIDC by default)"
+        default: false
+      infisical_path:
+        type: string
+        description: "Infisical secret path containing DISCORD_WEBHOOK"
+        default: "/"
     secrets:
       DISCORD_WEBHOOK:
-        description: "Discord webhook URL"
-        required: true
+        description: "Discord webhook URL (not needed when Infisical is used)"
+        required: false
+      TS_OAUTH_CLIENT_ID:
+        description: "Tailscale OAuth client ID"
+        required: false
+      TS_OAUTH_SECRET:
+        description: "Tailscale OAuth client secret"
+        required: false
+      TAILSCALE_AUTHKEY:
+        description: "Tailscale auth key (alternative to OAuth)"
+        required: false
 
 jobs:
   notify:
     name: Discord
     runs-on: ubuntu-latest
     steps:
+      - name: Join tailnet
+        if: ${{ inputs.tailscale }}
+        uses: cabrera-evil/workflows/.github/actions/tailscale@master
+        with:
+          client-id: ${{ secrets.TS_OAUTH_CLIENT_ID || vars.TS_CLIENT_ID }}
+          audience: ${{ vars.TS_AUDIENCE }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          authkey: ${{ secrets.TAILSCALE_AUTHKEY }}
+          tags: ${{ inputs.tailscale_tags || vars.TS_TAGS }}
+
+      - name: Fetch secrets (Infisical)
+        if: ${{ inputs.infisical }}
+        uses: cabrera-evil/workflows/.github/actions/infisical@master
+        with:
+          domain: ${{ vars.INFISICAL_DOMAIN }}
+          project-slug: ${{ vars.INFISICAL_PROJECT_SLUG }}
+          identity-id: ${{ vars.INFISICAL_IDENTITY_ID }}
+          client-id: ${{ secrets.INFISICAL_CLIENT_ID }}
+          client-secret: ${{ secrets.INFISICAL_CLIENT_SECRET }}
+          env: ${{ inputs.environment }}
+          path: ${{ inputs.infisical_path }}
+          secret-name: DISCORD_WEBHOOK
+
       - name: Set Metadata
         id: meta
         run: |
@@ -73,7 +121,7 @@ jobs:
       - name: Notify Discord
         uses: cabrera-evil/discord-notify-action@v1.0.2
         with:
-          webhook_url: ${{ secrets.DISCORD_WEBHOOK }}
+          webhook_url: ${{ secrets.DISCORD_WEBHOOK || env.DISCORD_WEBHOOK }}
           title: ${{ steps.meta.outputs.title }}
           description: ${{ steps.meta.outputs.description }}
           color: ${{ steps.meta.outputs.color }}

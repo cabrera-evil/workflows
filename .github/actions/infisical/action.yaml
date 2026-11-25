@@ -1,0 +1,94 @@
+name: Infisical
+description: >-
+  Fetch secrets from Infisical, as masked environment variables for later steps or as a
+  dotenv file. Keyless by default (GitHub OIDC machine identity); Universal Auth credentials
+  are an optional fallback. The calling job needs `permissions: id-token: write` for OIDC and
+  network reach to the instance (join Tailscale first for a private one). Composite actions
+  cannot read `vars` or `secrets`, so the caller passes them as inputs.
+
+inputs:
+  domain:
+    description: Infisical URL (e.g. https://infisical.example.ts.net)
+    required: true
+  project-slug:
+    description: Project slug
+    required: true
+  env:
+    description: Environment slug (e.g. production)
+    required: true
+  path:
+    description: Secret path (e.g. /users)
+    required: false
+    default: /
+  secret-name:
+    description: Fetch only this secret instead of every secret in the path
+    required: false
+    default: ""
+  identity-id:
+    description: Machine identity ID for the keyless OIDC flow
+    required: false
+    default: ""
+  oidc-audience:
+    description: Custom aud claim for the GitHub ID token (default - the action's own default)
+    required: false
+    default: ""
+  client-id:
+    description: Fallback - Universal Auth client ID
+    required: false
+    default: ""
+  client-secret:
+    description: Fallback - Universal Auth client secret (switches auth to Universal Auth)
+    required: false
+    default: ""
+  export:
+    description: "env (masked environment variables for later steps) or file (dotenv written to `file`)"
+    required: false
+    default: env
+  file:
+    description: Workspace-relative output path when export is file (e.g. .infisical.env)
+    required: false
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    - name: Validate Infisical inputs
+      shell: bash
+      env:
+        DOMAIN: ${{ inputs.domain }}
+        PROJECT: ${{ inputs.project-slug }}
+        ENV_SLUG: ${{ inputs.env }}
+        IDENTITY: ${{ inputs.identity-id }}
+        CLIENT_SECRET: ${{ inputs.client-secret }}
+        EXPORT: ${{ inputs.export }}
+        FILE: ${{ inputs.file }}
+      run: |
+        fail() { echo "::error title=Infisical::$1"; exit 1; }
+        [ -n "$DOMAIN" ] && [ -n "$PROJECT" ] || fail "Set the INFISICAL_DOMAIN and INFISICAL_PROJECT_SLUG Actions variables."
+        [ -n "$ENV_SLUG" ] || fail "No environment slug given."
+        if [ -z "$CLIENT_SECRET" ]; then
+          [ -n "$IDENTITY" ] || fail "Keyless login needs the INFISICAL_IDENTITY_ID Actions variable."
+          [ -n "$ACTIONS_ID_TOKEN_REQUEST_URL" ] || fail "Keyless login needs 'permissions: id-token: write' in the calling workflow."
+        fi
+        case "$EXPORT" in
+          env) ;;
+          file) case "$FILE" in ""|/*|*..*) fail "export=file needs a workspace-relative 'file' without '..'.";; esac ;;
+          *) fail "export must be 'env' or 'file'.";;
+        esac
+
+    - name: Fetch secrets
+      uses: Infisical/secrets-action@v1.0.18
+      with:
+        method: ${{ inputs.client-secret != '' && 'universal' || 'oidc' }}
+        identity-id: ${{ inputs.identity-id }}
+        oidc-audience: ${{ inputs.oidc-audience }}
+        client-id: ${{ inputs.client-id }}
+        client-secret: ${{ inputs.client-secret }}
+        domain: ${{ inputs.domain }}
+        project-slug: ${{ inputs.project-slug }}
+        env-slug: ${{ inputs.env }}
+        secret-path: ${{ inputs.path }}
+        secret-name: ${{ inputs.secret-name }}
+        export-type: ${{ inputs.export }}
+        # The action prepends $GITHUB_WORKSPACE to this path.
+        file-output-path: ${{ inputs.export == 'file' && format('/{0}', inputs.file) || '/.env' }}
