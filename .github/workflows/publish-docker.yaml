@@ -7,6 +7,11 @@ on:
         type: string
         required: true
         description: "Image name without tag and owner (e.g., my-api)"
+      build_args:
+        type: string
+        required: false
+        default: ""
+        description: "Newline-separated KEY=VALUE Docker build args. Public values only (e.g. NEXT_PUBLIC_*): build args are stored in the image layers."
     secrets:
       DOCKER_USERNAME:
         description: Docker Hub username
@@ -56,6 +61,7 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          build-args: ${{ inputs.build_args }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
           platforms: linux/amd64,linux/arm64
